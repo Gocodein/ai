@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Disaster Rescue Demo",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/rescue_ai_model.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}

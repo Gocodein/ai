@@ -1,0 +1,58 @@
+{
+  "incident_id": "INC-2026-03-001",
+  "status": "active",
+  "source": {
+    "type": "mobile_camera_demo",
+    "uri": "rtsp://demo-phone/stream"
+  },
+  "environment": {
+    "smoke_density": 0.6,
+    "heat_level": 0.5,
+    "structural_instability": 0.45,
+    "toxic_gas_probability": 0.3
+  },
+  "victim_detections": [
+    {
+      "victim_id": "V-1",
+      "x": 20,
+      "y": 80,
+      "breathing_score": 0.3,
+      "movement_score": 0.2,
+      "bleeding_probability": 0.85,
+      "trapped_probability": 0.7,
+      "injury_level": "CRITICAL"
+    },
+    {
+      "victim_id": "V-2",
+      "x": 60,
+      "y": 65,
+      "breathing_score": 0.7,
+      "movement_score": 0.4,
+      "bleeding_probability": 0.4,
+      "trapped_probability": 0.65,
+      "injury_level": "SEVERE"
+    }
+  ],
+  "entry_points": [
+    {
+      "name": "North Gate",
+      "x": 10,
+      "y": 95,
+      "blockage_risk": 0.25,
+      "structural_risk": 0.3,
+      "visibility_score": 0.75,
+      "navigation_clearance": 0.7,
+      "distance_to_victims": 20.0
+    },
+    {
+      "name": "Service Tunnel",
+      "x": 5,
+      "y": 40,
+      "blockage_risk": 0.45,
+      "structural_risk": 0.2,
+      "visibility_score": 0.8,
+      "navigation_clearance": 0.65,
+      "distance_to_victims": 35.0
+    }
+  ]
+}
