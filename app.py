@@ -1,3 +1,9 @@
+"""API service for real-time drone/mobile rescue inference demo."""
+
+from __future__ import annotations
+
+import json
+
 """Minimal API layer for deployment/demo usage."""
 
 from __future__ import annotations
@@ -11,6 +17,15 @@ from incident_store import (
     save_entry_recommendation,
     upsert_incident,
 )
+from rescue_ai_model import (
+    DisasterRescueModel,
+    EntryPoint,
+    EnvironmentSnapshot,
+    InjuryLevel,
+    VictimDetection,
+)
+
+app = FastAPI(title="Disaster Rescue AI", version="0.2.0")
 from rescue_ai_model import DisasterRescueModel, EntryPoint, InjuryLevel, VictimDetection
 
 app = FastAPI(title="Disaster Rescue AI", version="0.1.0")
@@ -19,6 +34,13 @@ app = FastAPI(title="Disaster Rescue AI", version="0.1.0")
 class Source(BaseModel):
     type: str = "unknown"
     uri: str | None = None
+
+
+class EnvironmentIn(BaseModel):
+    smoke_density: float = Field(ge=0, le=1)
+    heat_level: float = Field(ge=0, le=1)
+    structural_instability: float = Field(ge=0, le=1)
+    toxic_gas_probability: float = Field(ge=0, le=1)
 
 
 class VictimDetectionIn(BaseModel):
@@ -38,6 +60,8 @@ class EntryPointIn(BaseModel):
     y: float
     blockage_risk: float = Field(ge=0, le=1)
     structural_risk: float = Field(ge=0, le=1)
+    visibility_score: float = Field(ge=0, le=1)
+    navigation_clearance: float = Field(ge=0, le=1)
     distance_to_victims: float = 0
 
 
@@ -45,6 +69,7 @@ class IncidentIn(BaseModel):
     incident_id: str
     status: str = "active"
     source: Source = Source()
+    environment: EnvironmentIn
     victim_detections: list[VictimDetectionIn]
     entry_points: list[EntryPointIn]
 
@@ -57,6 +82,8 @@ def health() -> dict[str, str]:
 @app.post("/run-incident")
 def run_incident(payload: IncidentIn) -> dict:
     model = DisasterRescueModel()
+
+    environment = EnvironmentSnapshot(**payload.environment.model_dump())
 
     try:
         detections = [
@@ -85,11 +112,20 @@ def run_incident(payload: IncidentIn) -> dict:
             y=e.y,
             blockage_risk=e.blockage_risk,
             structural_risk=e.structural_risk,
+            visibility_score=e.visibility_score,
+            navigation_clearance=e.navigation_clearance,
             distance_to_victims=e.distance_to_victims,
         )
         for e in payload.entry_points
     ]
 
+    priorities = model.prioritize_victims(model.process_stream(detections), environment)
+    best_entry = model.suggest_entry_point(entry_points, priorities, environment)
+    environment_risk = model.compute_environment_risk(environment)
+
+    conn = open_database("rescue_ops.db")
+    try:
+        upsert_incident(conn, payload.model_dump(), environment_risk)
     priorities = model.prioritize_victims(model.process_stream(detections))
     best_entry = model.suggest_entry_point(entry_points, priorities)
 
@@ -104,6 +140,8 @@ def run_incident(payload: IncidentIn) -> dict:
                     "victim_id": p.victim.victim_id,
                     "priority_rank": rank,
                     "priority_score": p.score,
+                    "risk_factor": p.risk_factor,
+                    "safe_minutes": p.estimated_safe_minutes,
                     "rationale": p.rationale,
                     "x": p.victim.x,
                     "y": p.victim.y,
@@ -118,6 +156,7 @@ def run_incident(payload: IncidentIn) -> dict:
                 "entry_name": best_entry.entry_point.name,
                 "score": best_entry.score,
                 "rationale": best_entry.rationale,
+                "checkpoints_json": json.dumps(best_entry.checkpoints),
                 "x": best_entry.entry_point.x,
                 "y": best_entry.entry_point.y,
                 "blockage_risk": best_entry.entry_point.blockage_risk,
@@ -129,10 +168,13 @@ def run_incident(payload: IncidentIn) -> dict:
 
     return {
         "incident_id": payload.incident_id,
+        "environment_risk": environment_risk,
         "priorities": [
             {
                 "rank": rank,
                 "victim_id": p.victim.victim_id,
+                "risk_factor": p.risk_factor,
+                "safe_minutes": p.estimated_safe_minutes,
                 "score": p.score,
                 "rationale": p.rationale,
             }
@@ -141,6 +183,7 @@ def run_incident(payload: IncidentIn) -> dict:
         "entry_recommendation": {
             "name": best_entry.entry_point.name,
             "score": best_entry.score,
+            "checkpoints": best_entry.checkpoints,
             "rationale": best_entry.rationale,
         },
     }

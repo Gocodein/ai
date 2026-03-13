@@ -1,184 +1,78 @@
-# Disaster Rescue AI (Prototype)
+# Disaster Rescue AI Model
 
-This project is a starter model pipeline for rescue missions in **closed or dangerous areas** where humans cannot quickly reach after disasters or attacks.
+This project is refined for your exact workflow:
+- FPV drone/mobile camera feed,
+- AI calculates victim risk factor + estimated safe minutes,
+- AI builds rescue priority list,
+- AI suggests safest navigation route from camera-derived scene signals.
 
-## What this model does
+## Core flow implemented
 
-1. **Video processing input**
-   - Accepts victim signals derived from either:
-     - uploaded video, or
-     - live drone camera stream.
-2. **Victim priority stack**
-   - Builds a rescue-first ranking using injury severity, consciousness, mobility, nearby hazards, and estimated decline time.
-3. **Best rescue entry point suggestion**
-   - Uses a risk-aware path search on a hazard grid to recommend entry points with the lowest average rescue cost.
+1. Capture real-time footage from drone FPV or mobile demo camera.
+2. Run detection pipeline to produce `victim_detections` and environment hazards.
+3. Compute:
+   - environment risk score,
+   - victim risk factor and safe-time estimate,
+   - priority stack,
+   - safest entry + checkpoints.
+4. Save results to database for dashboard/command center.
 
-## Current implementation
+## Files
 
-- `src/rescue_ai.py`
-  - `VictimPrioritizer` computes victim urgency score.
-  - `EntryPointAnalyzer` computes safe/efficient entry points.
-  - `RescueCoordinator` orchestrates the full response pipeline.
-- `tests/test_rescue_ai.py`
-  - Smoke test for ranking and entry-point output.
+- `rescue_ai_model.py` — triage + environment-risk + navigation logic.
+- `incident_store.py` — SQLite persistence layer.
+- `run_incident.py` — CLI pipeline runner.
+- `app.py` — FastAPI endpoint for live/demo integration.
+- `incident.example.json` — reference incident payload.
+- `disaster_rescue_colab.ipynb` — Google Colab ready notebook.
+- `tests/test_pipeline.py` — regression tests.
 
-## Example incident JSON
-
-```json
-{
-  "source": "drone-live-stream-17",
-  "victims": [
-    {
-      "victim_id": "V-01",
-      "location": [4, 2],
-      "injury_severity": 0.9,
-      "consciousness": 0.2,
-      "mobility": 0.1,
-      "nearby_hazard": 0.7,
-      "estimated_minutes_to_decline": 18
-    }
-  ],
-  "risk_grid": [
-    [0.1, 0.2, 0.3],
-    [0.1, 0.9, 0.4],
-    [0.1, 0.2, 0.1]
-  ],
-  "candidate_entries": [[0, 0], [2, 0], [0, 2]]
-}
-```
-
-## Run
+## Local run
 
 ```bash
-python -m src.rescue_ai incident.json
+python3 rescue_ai_model.py
+python3 run_incident.py
 ```
 
-## Test
+## API run
 
 ```bash
-pytest -q
+pip install -r requirements.txt
+uvicorn app:app --reload
 ```
 
-## Next steps for production
+Open:
+- `http://127.0.0.1:8000/docs`
+- `http://127.0.0.1:8000/health`
 
-- Replace manual victim signals with computer-vision models (pose, thermal, motion, smoke/fire cues).
-- Add uncertainty calibration for low-visibility frames.
-- Add multi-drone fusion and map stitching.
-- Integrate with real-time command dashboard.
-# AI Rescue Prioritization Model
+## Database outputs
 
-This repository now contains a practical blueprint for an AI system that helps rescue teams locate and prioritize victims in closed or hard-to-reach disaster zones.
+After `run_incident.py`, SQLite `rescue_ops.db` stores:
+- `incidents` (incident + env risk)
+- `victim_priorities` (rank, risk, safe minutes)
+- `entry_recommendations` (entry score + navigation checkpoints)
 
-## Goal
-Build an AI model that can:
-1. Process uploaded videos or live drone camera feeds.
-2. Create a victim priority stack based on urgency.
-3. Recommend the safest and fastest entry point for rescue teams.
+## Google Colab (to avoid local library issues)
 
-## Proposed System Name
-**SAR-Vision (Search And Rescue Vision Intelligence)**
+Use `disaster_rescue_colab.ipynb`:
+1. Open Colab and upload notebook + repo files.
+2. Run all cells.
+3. It installs required libraries, runs model logic, and generates `rescue_ops.db`.
 
-## Core Workflow
+## Docker
 
-### 1) Input Processing Layer
-- Accepts:
-  - User-uploaded videos.
-  - Live drone streams (RTSP/WebRTC).
-- Splits video into frames and synchronizes timestamps.
-- Runs low-light enhancement and smoke/debris denoising to improve detection reliability.
-
-### 2) Victim Detection & Tracking
-- Uses a vision model (e.g., YOLOv8/DETR backbone) to detect people.
-- Uses pose estimation and motion analysis to infer victim condition:
-  - Moving and responsive.
-  - Injured but moving.
-  - Immobile/unconscious risk.
-- Tracks each person over time with multi-object tracking (ByteTrack/DeepSORT) to avoid duplicate counting.
-
-### 3) Priority Scoring Engine
-Each victim receives a dynamic priority score:
-
-`PriorityScore = (MedicalRisk × 0.45) + (AccessibilityRisk × 0.25) + (EnvironmentThreat × 0.20) + (SurvivalTimePenalty × 0.10)`
-
-Where:
-- **MedicalRisk**: Estimated injury severity, blood loss cues, unconscious posture, no motion over long interval.
-- **AccessibilityRisk**: How hard it is to reach safely.
-- **EnvironmentThreat**: Nearby fire/smoke/toxic hazards/unstable structure.
-- **SurvivalTimePenalty**: Time elapsed since first detection without aid.
-
-Output:
-- Ranked victim stack: **Rescue First → Last**.
-- Confidence per victim and explanation fields for each score component.
-
-### 4) Entry Point Recommendation Module
-- Builds a scene map from drone images (2D occupancy or 3D mesh if depth is available).
-- Detects blocked routes, fire pockets, structural collapse zones, and narrow corridors.
-- Runs graph-based path planning (A*/Dijkstra with risk-aware costs) to compute:
-  - Best entry point.
-  - Secondary backup entry point.
-  - Expected time-to-victim for top-priority cases.
-
-### 5) Command Dashboard Output
-- Live video with overlays:
-  - Victim IDs and urgency color code.
-  - Hazard zones.
-  - Recommended ingress path.
-- Incident summary JSON for rescue control systems.
-
-## Suggested Model Stack
-- **Vision backbone**: YOLOv8 or RT-DETR.
-- **Pose model**: MoveNet / OpenPose / ViTPose.
-- **Tracking**: ByteTrack.
-- **Segmentation/hazard detection**: SegFormer or Mask2Former.
-- **Route planning**: NetworkX + custom risk-weighted graph.
-- **Deployment**: Edge GPU (Jetson) + cloud sync for command center.
-
-## Minimal Data Schema
-```json
-{
-  "frame_id": 412,
-  "timestamp": "2026-03-12T10:15:30Z",
-  "victims": [
-    {
-      "victim_id": "V-07",
-      "bbox": [122, 88, 74, 168],
-      "condition": "immobile",
-      "priority_score": 0.91,
-      "priority_rank": 1,
-      "confidence": 0.86,
-      "hazards_nearby": ["smoke", "falling_debris"]
-    }
-  ],
-  "entry_points": [
-    {
-      "id": "E-2",
-      "score": 0.84,
-      "eta_seconds": 95,
-      "route_risk": "moderate"
-    }
-  ]
-}
+```bash
+docker build -t rescue-ai .
+docker run --rm -p 8000:8000 rescue-ai
 ```
 
-## Phased Build Plan
-1. **Phase 1 (MVP)**
-   - Detect victims from uploaded videos.
-   - Create basic priority ranking from motion + hazard proximity.
-2. **Phase 2**
-   - Add live drone feed support and tracking continuity.
-   - Add route recommendation with map constraints.
-3. **Phase 3**
-   - Add multimodal signals (thermal camera, audio distress clues).
-   - Validate with synthetic disaster simulations and field drills.
+## Testing
 
-## Safety & Ethical Constraints
-- Treat predictions as **decision support**, not autonomous final decisions.
-- Keep human override mandatory.
-- Log model confidence and uncertainty for every recommendation.
-- Protect identity and sensitive incident footage with strict access control.
+```bash
+python3 -m py_compile rescue_ai_model.py incident_store.py run_incident.py app.py
+python3 -m unittest discover -s tests -p 'test_*.py'
+```
 
-## Next Step
-If you want, the next iteration can include:
-- A production-ready folder structure.
-- Training + inference scripts.
-- A sample API (`/analyze`, `/priority`, `/entry-point`) for integration with a drone control dashboard.
+## Important note
+
+This is decision-support software. Final rescue decisions must remain with trained emergency responders.

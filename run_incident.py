@@ -1,3 +1,8 @@
+"""Run rescue model from incident JSON and persist results."""
+
+from __future__ import annotations
+
+import json
 """Run the rescue model from incident.json and persist outputs to SQLite."""
 
 from __future__ import annotations
@@ -14,6 +19,7 @@ from incident_store import (
 from rescue_ai_model import (
     DisasterRescueModel,
     EntryPoint,
+    EnvironmentSnapshot,
     InjuryLevel,
     VictimDetection,
 )
@@ -22,6 +28,14 @@ from rescue_ai_model import (
 def main(incident_path: str = "incident.example.json", db_path: str = "rescue_ops.db") -> None:
     incident = load_incident_json(incident_path)
     model = DisasterRescueModel()
+
+    env = incident["environment"]
+    environment = EnvironmentSnapshot(
+        smoke_density=float(env["smoke_density"]),
+        heat_level=float(env["heat_level"]),
+        structural_instability=float(env["structural_instability"]),
+        toxic_gas_probability=float(env["toxic_gas_probability"]),
+    )
 
     detections = [
         VictimDetection(
@@ -44,12 +58,21 @@ def main(incident_path: str = "incident.example.json", db_path: str = "rescue_op
             y=float(e["y"]),
             blockage_risk=float(e["blockage_risk"]),
             structural_risk=float(e["structural_risk"]),
+            visibility_score=float(e["visibility_score"]),
+            navigation_clearance=float(e["navigation_clearance"]),
             distance_to_victims=float(e.get("distance_to_victims", 0.0)),
         )
         for e in incident.get("entry_points", [])
     ]
 
     normalized = model.process_stream(detections)
+    priorities = model.prioritize_victims(normalized, environment)
+    best_entry = model.suggest_entry_point(entry_points, priorities, environment)
+    environment_risk = model.compute_environment_risk(environment)
+
+    conn = open_database(db_path)
+    try:
+        upsert_incident(conn, incident, environment_risk)
     priorities = model.prioritize_victims(normalized)
     best_entry = model.suggest_entry_point(entry_points, priorities)
 
@@ -64,6 +87,8 @@ def main(incident_path: str = "incident.example.json", db_path: str = "rescue_op
                     "victim_id": p.victim.victim_id,
                     "priority_rank": rank,
                     "priority_score": p.score,
+                    "risk_factor": p.risk_factor,
+                    "safe_minutes": p.estimated_safe_minutes,
                     "rationale": p.rationale,
                     "x": p.victim.x,
                     "y": p.victim.y,
@@ -78,6 +103,7 @@ def main(incident_path: str = "incident.example.json", db_path: str = "rescue_op
                 "entry_name": best_entry.entry_point.name,
                 "score": best_entry.score,
                 "rationale": best_entry.rationale,
+                "checkpoints_json": json.dumps(best_entry.checkpoints),
                 "x": best_entry.entry_point.x,
                 "y": best_entry.entry_point.y,
                 "blockage_risk": best_entry.entry_point.blockage_risk,
