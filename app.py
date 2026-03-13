@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import json
 
+"""Minimal API layer for deployment/demo usage."""
+
+from __future__ import annotations
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -22,6 +26,9 @@ from rescue_ai_model import (
 )
 
 app = FastAPI(title="Disaster Rescue AI", version="0.2.0")
+from rescue_ai_model import DisasterRescueModel, EntryPoint, InjuryLevel, VictimDetection
+
+app = FastAPI(title="Disaster Rescue AI", version="0.1.0")
 
 
 class Source(BaseModel):
@@ -119,6 +126,12 @@ def run_incident(payload: IncidentIn) -> dict:
     conn = open_database("rescue_ops.db")
     try:
         upsert_incident(conn, payload.model_dump(), environment_risk)
+    priorities = model.prioritize_victims(model.process_stream(detections))
+    best_entry = model.suggest_entry_point(entry_points, priorities)
+
+    conn = open_database("rescue_ops.db")
+    try:
+        upsert_incident(conn, payload.model_dump())
         replace_victim_priorities(
             conn,
             incident_id=payload.incident_id,
@@ -162,6 +175,7 @@ def run_incident(payload: IncidentIn) -> dict:
                 "victim_id": p.victim.victim_id,
                 "risk_factor": p.risk_factor,
                 "safe_minutes": p.estimated_safe_minutes,
+                "score": p.score,
                 "rationale": p.rationale,
             }
             for rank, p in enumerate(priorities, start=1)

@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import json
+"""Run the rescue model from incident.json and persist outputs to SQLite."""
+
+from __future__ import annotations
+
 from pathlib import Path
 
 from incident_store import (
@@ -69,6 +73,12 @@ def main(incident_path: str = "incident.example.json", db_path: str = "rescue_op
     conn = open_database(db_path)
     try:
         upsert_incident(conn, incident, environment_risk)
+    priorities = model.prioritize_victims(normalized)
+    best_entry = model.suggest_entry_point(entry_points, priorities)
+
+    conn = open_database(db_path)
+    try:
+        upsert_incident(conn, incident)
         replace_victim_priorities(
             conn,
             incident_id=incident["incident_id"],

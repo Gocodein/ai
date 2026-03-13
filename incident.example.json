@@ -10,6 +10,12 @@
     "heat_level": 0.5,
     "structural_instability": 0.45,
     "toxic_gas_probability": 0.3
+    "type": "drone_live_stream",
+    "uri": "rtsp://drone-team-alpha/stream-1"
+  },
+  "site": {
+    "name": "Warehouse Block C",
+    "city": "Example City"
   },
   "victim_detections": [
     {
@@ -20,6 +26,10 @@
       "movement_score": 0.2,
       "bleeding_probability": 0.85,
       "trapped_probability": 0.7,
+      "breathing_score": 0.30,
+      "movement_score": 0.20,
+      "bleeding_probability": 0.85,
+      "trapped_probability": 0.70,
       "injury_level": "CRITICAL"
     },
     {
@@ -29,6 +39,9 @@
       "breathing_score": 0.7,
       "movement_score": 0.4,
       "bleeding_probability": 0.4,
+      "breathing_score": 0.70,
+      "movement_score": 0.40,
+      "bleeding_probability": 0.40,
       "trapped_probability": 0.65,
       "injury_level": "SEVERE"
     }
@@ -42,6 +55,7 @@
       "structural_risk": 0.3,
       "visibility_score": 0.75,
       "navigation_clearance": 0.7,
+      "structural_risk": 0.30,
       "distance_to_victims": 20.0
     },
     {
@@ -52,6 +66,7 @@
       "structural_risk": 0.2,
       "visibility_score": 0.8,
       "navigation_clearance": 0.65,
+      "structural_risk": 0.20,
       "distance_to_victims": 35.0
     }
   ]

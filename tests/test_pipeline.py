@@ -16,6 +16,12 @@ class PipelineTests(unittest.TestCase):
     def test_priorities_sorted_desc_with_environment(self):
         model = DisasterRescueModel()
         environment = EnvironmentSnapshot(0.6, 0.5, 0.5, 0.4)
+from rescue_ai_model import DisasterRescueModel, EntryPoint, InjuryLevel, VictimDetection
+
+
+class PipelineTests(unittest.TestCase):
+    def test_priorities_sorted_desc(self):
+        model = DisasterRescueModel()
         data = [
             VictimDetection("A", 0, 0, 0.2, 0.2, 0.9, 0.8, InjuryLevel.CRITICAL),
             VictimDetection("B", 0, 0, 0.9, 0.9, 0.1, 0.1, InjuryLevel.MINOR),
@@ -26,6 +32,11 @@ class PipelineTests(unittest.TestCase):
         self.assertGreater(out[0].estimated_safe_minutes, 0)
 
     def test_incident_json_requires_id_and_environment(self):
+        out = model.prioritize_victims(data)
+        self.assertGreaterEqual(out[0].score, out[1].score)
+        self.assertEqual(out[0].victim.victim_id, "A")
+
+    def test_incident_json_requires_id(self):
         with tempfile.NamedTemporaryFile("w+", suffix=".json") as f:
             f.write(json.dumps({"status": "active"}))
             f.flush()
@@ -62,6 +73,8 @@ class PipelineTests(unittest.TestCase):
             environment,
         )
         self.assertGreaterEqual(len(rec.checkpoints), 2)
+        with self.assertRaises(ValueError):
+            model.suggest_entry_point([], [])
 
 
 if __name__ == "__main__":

@@ -1,4 +1,10 @@
 """Persistence helpers for incident inputs/outputs."""
+"""Persistence helpers for disaster rescue outputs.
+
+Use this module to:
+1) load an incident input from `incident.json`,
+2) store incident metadata + model outputs in SQLite.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +12,7 @@ import json
 import sqlite3
 from pathlib import Path
 from typing import Any, Dict, Iterable
+from typing import Any, Dict, Iterable, List
 
 
 def load_incident_json(path: str | Path) -> Dict[str, Any]:
@@ -73,6 +80,15 @@ def upsert_incident(conn: sqlite3.Connection, incident: Dict[str, Any], environm
             source_uri=excluded.source_uri,
             status=excluded.status,
             environment_risk=excluded.environment_risk
+def upsert_incident(conn: sqlite3.Connection, incident: Dict[str, Any]) -> None:
+    conn.execute(
+        """
+        INSERT INTO incidents (incident_id, source_type, source_uri, status)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(incident_id) DO UPDATE SET
+            source_type=excluded.source_type,
+            source_uri=excluded.source_uri,
+            status=excluded.status
         """,
         (
             incident["incident_id"],
@@ -92,6 +108,8 @@ def replace_victim_priorities(conn: sqlite3.Connection, incident_id: str, rows: 
         INSERT INTO victim_priorities
         (incident_id, victim_id, priority_rank, priority_score, risk_factor, safe_minutes, rationale, x, y)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (incident_id, victim_id, priority_rank, priority_score, rationale, x, y)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         [
             (
@@ -117,6 +135,8 @@ def save_entry_recommendation(conn: sqlite3.Connection, incident_id: str, recomm
         INSERT INTO entry_recommendations
         (incident_id, entry_name, score, rationale, checkpoints_json, x, y, blockage_risk, structural_risk)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (incident_id, entry_name, score, rationale, x, y, blockage_risk, structural_risk)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             incident_id,
